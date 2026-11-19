@@ -1,0 +1,15 @@
+# 本地配置与凭证
+config.env
+
+# 数据库与运行产物
+data/*
+!data/cacert.pem
+
+# 下载内容
+downloads/*
+!downloads/.gitkeep
+
+logs/
+*.part
+*.zip
+*.log

@@ -1,0 +1,18 @@
+.git
+.github
+.gitignore
+
+# 本地配置与凭证
+config.env
+
+# 数据库与下载内容
+data/*.db
+data/*.db-*
+data/meta-*.json
+data/tmp-meta
+downloads/*
+
+logs/
+*.part
+*.zip
+*.log
