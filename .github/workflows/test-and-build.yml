@@ -42,20 +42,26 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
+          ready=0
           for _ in $(seq 1 40); do
-            if curl -fsS http://127.0.0.1:8080/api/health > /tmp/health.json 2>/dev/null; then
+            if curl -fsS http://127.0.0.1:8080/api/health -o /tmp/health.json 2>/dev/null; then
+              ready=1
               break
             fi
             sleep 0.5
           done
 
           cat /tmp/php-server.log
+          test "$ready" = "1"
           cat /tmp/health.json
           grep -q '"ok":true' /tmp/health.json
 
-          curl -fsS 'http://127.0.0.1:8080/api/list' | grep -q '"success":true'
-          curl -fsS 'http://127.0.0.1:8080/' | grep -q 'Pixiv Animation'
-          curl -fsS 'http://127.0.0.1:8080/download' | grep -q '抓取下载'
+          curl -fsS 'http://127.0.0.1:8080/api/list' -o /tmp/list.json
+          grep -q '"success":true' /tmp/list.json
+          curl -fsS 'http://127.0.0.1:8080/' -o /tmp/index.html
+          grep -q 'Pixiv Animation' /tmp/index.html
+          curl -fsS 'http://127.0.0.1:8080/download' -o /tmp/download.html
+          grep -q '抓取下载' /tmp/download.html
           test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/api/works/999999999')" = "404"
 
       - name: 元数据写入测试
@@ -96,13 +102,16 @@ jobs:
           docker run -d --name pixiv-animation-ci -p 5400:5400 pixiv-animation:ci
           trap 'docker rm -f pixiv-animation-ci >/dev/null 2>&1 || true' EXIT
 
+          ready=0
           for _ in $(seq 1 40); do
-            if curl -fsS http://127.0.0.1:5400/api/health > /tmp/docker-health.json 2>/dev/null; then
+            if curl -fsS http://127.0.0.1:5400/api/health -o /tmp/docker-health.json 2>/dev/null; then
+              ready=1
               break
             fi
             sleep 0.5
           done
 
           docker logs pixiv-animation-ci
+          test "$ready" = "1"
           cat /tmp/docker-health.json
           grep -q '"ok":true' /tmp/docker-health.json
