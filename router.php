@@ -27,6 +27,12 @@ if (preg_match('#^/play/([^/]+)/?$#', $uri, $m)) {
     return true;
 }
 
+if (preg_match('#^/edit/([^/]+)/?$#', $uri, $m)) {
+    $_GET['id'] = rawurldecode($m[1]);
+    require __DIR__ . '/web/edit.php';
+    return true;
+}
+
 if (preg_match('#^/downloads/(\d+)_ugoira1920x1080/index\.html$#', $uri, $m)) {
     header('Location: /play/' . rawurlencode($m[1]), true, 302);
     return true;

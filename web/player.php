@@ -56,6 +56,7 @@ ob_start();
                     <button id="playPauseButton" class="btn-solid theme-primary player-action" type="button"
                         aria-pressed="false">播放</button>
                     <span class="hint">空格键播放 / 暂停</span>
+                    <a class="hint" href="/edit/<?= h($id) ?>">编辑信息</a>
                 </div>
                 <span class="frame-counter" id="frameDelay">45 ms / 帧</span>
             </footer>

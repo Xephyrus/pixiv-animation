@@ -11,6 +11,7 @@
 - **动图播放**：读取 `meta_json` 里的 `frames.file` 与逐帧 `delay`，按原速播放，支持播放 / 暂停与进度显示
 - **元数据**：动图记录 `src`、`originalSrc`、`mime_type` 与逐帧延迟，播放节奏与 Pixiv 一致
 - **本地同步**：扫描已有的 `downloads/{id}_ugoira1920x1080/` 目录入库
+- **编辑信息**：`/edit/{id}` 可修改人物名称、标题、显示名与标签；下载页的人物名称不再缓存填充
 - **元数据修复**：可用登录 Cookie 批量重抓，或直接导入浏览器里复制的 `ugoira_meta` 响应
 - **容器与 CI**：提供 Dockerfile，GitHub Actions 跑语法检查、冒烟测试与镜像构建
 
@@ -36,6 +37,7 @@ php scripts/sync.php               # 可选：把已有 ugoira 目录同步进�
 - 图库 <http://127.0.0.1:5400/>
 - 下载页 <http://127.0.0.1:5400/download>
 - 动图播放 <http://127.0.0.1:5400/play/{id}>
+- 编辑信息 <http://127.0.0.1:5400/edit/{id}>
 
 也可以不用启动脚本：
 
@@ -95,6 +97,7 @@ docker run -d --name pixiv-animation -p 5400:5400 \
 | GET | `/api/illust/{id}` | 代理 Pixiv `ajax/illust` |
 | GET | `/api/ugoira_meta/{id}` | 代理 Pixiv `ugoira_meta` |
 | POST | `/api/download` | 按 ID 抓取并落库，可带 `redownload`、`character` |
+| PUT | `/api/works/{id}` | 更新作品信息（`character`、`title`、`name`、`tags`） |
 | PUT | `/api/works/{id}/character` | 更新动图人物名 |
 | DELETE | `/api/works/{id}` | 删除作品，可带 `deleteFiles` |
 | POST | `/api/sync` | 扫描已有 ugoira 目录入库 |

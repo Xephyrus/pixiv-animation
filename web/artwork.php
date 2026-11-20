@@ -13,8 +13,12 @@ ob_start();
         <h1 class="gallery-title" id="title">加载中…</h1>
         <p class="gallery-description" id="meta"></p>
     </div>
-    <a class="btn-outline theme-primary" href="/"
-        style="color: var(--gallery-accent); border-color: var(--gallery-accent-border);">返回图库</a>
+    <div class="d-flex gap-2">
+        <a class="btn-outline theme-primary" id="editLink" href="#" hidden
+            style="color: var(--gallery-accent); border-color: var(--gallery-accent-border);">编辑信息</a>
+        <a class="btn-outline theme-primary" href="/"
+            style="color: var(--gallery-accent); border-color: var(--gallery-accent-border);">返回图库</a>
+    </div>
 </header>
 <div class="artwork-grid mb-5" id="grid"></div>
 <?php
@@ -33,6 +37,11 @@ try {
     const work = json.data;
     titleEl.textContent = work.title || work.name || work.id;
     metaEl.textContent = `ID ${work.id} · ${work.illustType === 1 ? '漫画' : '图片'} · ${work.fileCount} 张`;
+    const editLink = document.getElementById('editLink');
+    if (editLink) {
+        editLink.href = '/edit/' + encodeURIComponent(work.id);
+        editLink.hidden = false;
+    }
     grid.innerHTML = (work.files || []).map((file) => {
         const src = `/downloads/${encodeURIComponent(work.id)}/${encodeURIComponent(file)}`;
         return `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="${file}" loading="lazy"></a>`;

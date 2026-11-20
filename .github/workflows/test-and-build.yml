@@ -76,6 +76,7 @@ jobs:
           printf '%s' '{"error":false,"message":"","body":{"src":"https://example.com/a.zip","originalSrc":"https://example.com/b.zip","mime_type":"image/jpeg","frames":[{"file":"000000.jpg","delay":80},{"file":"000001.jpg","delay":50},{"file":"000002.jpg","delay":50}]}}' > /tmp/meta-999999999.json
           php scripts/import_meta_json.php /tmp/meta-999999999.json
           php -r '$pdo = new PDO("sqlite:" . getenv("DB_PATH")); $stmt = $pdo->prepare("SELECT meta_json FROM works WHERE id = ?"); $stmt->execute([(string) 999999999]); $meta = json_decode((string) $stmt->fetchColumn(), true); exit(($meta["frames"][0]["delay"] ?? 0) === 80 && ($meta["src"] ?? "") === "https://example.com/a.zip" ? 0 : 1);'
+          php -r 'require "src/bootstrap.php"; app_db()->updateWorkInfo("999999999", ["character" => "测试角色", "tags" => ["A", "B"]]); $work = app_db()->getWork("999999999"); exit(($work["character"] ?? "") === "测试角色" && ($work["tags"] ?? []) === ["A", "B"] ? 0 : 1);'
 
   docker:
     name: docker build

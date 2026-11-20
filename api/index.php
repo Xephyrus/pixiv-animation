@@ -97,6 +97,49 @@ function route_api(string $method, string $path): void
         Response::ok($work);
     }
 
+    if (preg_match('#^/works/([^/]+)$#', $path, $m) && in_array($method, ['PUT', 'PATCH'], true)) {
+        $id = rawurldecode($m[1]);
+        $db = app_db();
+        if ($db->getWork($id) === null) {
+            Response::error('作品不存在', 404);
+        }
+
+        $json = request_json();
+        $fields = [];
+        foreach (['name', 'title', 'character'] as $key) {
+            if (array_key_exists($key, $json) && is_string($json[$key])) {
+                $fields[$key] = trim($json[$key]);
+            }
+        }
+        if (array_key_exists('tags', $json)) {
+            $tags = $json['tags'];
+            if (is_string($tags)) {
+                $tags = preg_split('/[,，]/u', $tags) ?: [];
+            }
+            if (is_array($tags)) {
+                $clean = [];
+                foreach ($tags as $tag) {
+                    $tag = trim((string) $tag);
+                    if ($tag !== '') {
+                        $clean[] = $tag;
+                    }
+                }
+                $fields['tags'] = array_values(array_unique($clean));
+            }
+        }
+
+        if ($fields === []) {
+            Response::error('没有可更新的字段', 400);
+        }
+
+        $db->updateWorkInfo($id, $fields);
+        $work = $db->getWork($id) ?? [];
+        $work['files'] = $db->listFiles($id);
+        $work['coverUrl'] = work_cover_url($work);
+        $work['viewUrl'] = work_view_url($work);
+        Response::ok($work);
+    }
+
     if (preg_match('#^/works/([^/]+)$#', $path, $m) && $method === 'DELETE') {
         $json = request_json();
         $deleteFiles = !array_key_exists('deleteFiles', $json) || !empty($json['deleteFiles']);

@@ -213,6 +213,45 @@ SQL);
         $stmt->execute([$character, time(), $id]);
     }
 
+    /**
+     * 只更新传入的字段（name / title / character / tags），并刷新 modified_at。
+     *
+     * @param array<string, mixed> $fields
+     */
+    public function updateWorkInfo(string $id, array $fields): void
+    {
+        $allowed = ['name', 'title', 'character', 'tags'];
+        $sets = [];
+        $params = [];
+
+        foreach ($allowed as $column) {
+            if (!array_key_exists($column, $fields)) {
+                continue;
+            }
+            $value = $fields[$column];
+            if ($column === 'tags') {
+                $value = is_array($value)
+                    ? (string) json_encode(array_values($value), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : (string) $value;
+            } else {
+                $value = (string) $value;
+            }
+            $sets[] = $column . ' = ?';
+            $params[] = $value;
+        }
+
+        if ($sets === []) {
+            return;
+        }
+
+        $sets[] = 'modified_at = ?';
+        $params[] = time();
+        $params[] = $id;
+
+        $stmt = $this->pdo->prepare('UPDATE works SET ' . implode(', ', $sets) . ' WHERE id = ?');
+        $stmt->execute($params);
+    }
+
     public function deleteWork(string $id): void
     {
         $stmt = $this->pdo->prepare('DELETE FROM works WHERE id = ?');

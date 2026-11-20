@@ -10,12 +10,14 @@ function setStatus(message, state) {
   statusEl.dataset.state = state;
 }
 
-for (const key of ['id', 'cookie', 'proxyPort', 'character']) {
+// 人物名称属于单个作品的信息，不做本地缓存填充，避免串到其它作品
+for (const key of ['id', 'cookie', 'proxyPort']) {
   const el = document.getElementById(key);
   const saved = localStorage.getItem('pixiv-anim-' + key);
   if (el && saved) el.value = saved;
   el?.addEventListener('change', () => localStorage.setItem('pixiv-anim-' + key, el.value));
 }
+localStorage.removeItem('pixiv-anim-character');
 
 function appendLog(message, cls = '') {
   if (logEl.dataset.empty !== '0') {
