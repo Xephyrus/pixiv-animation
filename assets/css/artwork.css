@@ -42,6 +42,26 @@
         calc(var(--f-button-height, 46px) + 28px);
 }
 
+/*
+ * 兜底遮罩：Fancybox 会按 visualViewport 缩放/偏移它自己的容器，
+ * 容器被缩放时页面边缘可能露出来。这里在根元素上再铺一层整屏底色，
+ * 始终盖住可视区域；Fancybox 的容器 z-index 更高，交互不受影响。
+ */
+html::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background: rgb(24 24 27 / 98%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+}
+
+html.with-fancybox::before {
+    opacity: 1;
+}
+
 .fancybox__toolbar {
     padding-top: max(6px, env(safe-area-inset-top, 0px));
     padding-left: max(6px, env(safe-area-inset-left, 0px));
