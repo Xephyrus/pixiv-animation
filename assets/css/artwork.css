@@ -1,0 +1,14 @@
+.artwork-grid a {
+    cursor: zoom-in;
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.artwork-grid a:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 12%);
+}
+
+.artwork-grid a:focus-visible {
+    outline: 2px solid var(--bs-primary-base);
+    outline-offset: 2px;
+}
