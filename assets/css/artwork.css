@@ -43,23 +43,11 @@
 }
 
 /*
- * 兜底遮罩：Fancybox 会按 visualViewport 缩放/偏移它自己的容器，
- * 容器被缩放时页面边缘可能露出来。这里在根元素上再铺一层整屏底色，
- * 始终盖住可视区域；Fancybox 的容器 z-index 更高，交互不受影响。
+ * Fancybox 打开时仍会保留滚动条槽位，浅色主题下这段会露出页面底色（右侧白边）。
+ * download-widget 是深色页面所以看不出来；这里把根元素底色换成遮罩色即可。
  */
-html::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 1040;
-    background: rgb(24 24 27 / 98%);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .2s ease;
-}
-
-html.with-fancybox::before {
-    opacity: 1;
+html.with-fancybox {
+    background-color: #18181b;
 }
 
 .fancybox__toolbar {
