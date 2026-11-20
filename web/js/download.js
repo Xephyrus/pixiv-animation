@@ -43,6 +43,15 @@ function clearLog() {
   logEl.dataset.empty = '0';
 }
 
+function cookieHasSession(cookie) {
+  return /(?:^|;\s*)PHPSESSID=/i.test(cookie);
+}
+
+function warnIfCookieIncomplete(cookie) {
+  if (!cookie || cookieHasSession(cookie)) return;
+  appendLog('提示：这段 Cookie 不含 PHPSESSID（HttpOnly，document.cookie 读不到），受限作品会返回 404。请从 DevTools → Network → 任意请求的 Cookie 请求头复制完整值。');
+}
+
 function headers() {
   const h = { 'Content-Type': 'application/json' };
   const cookie = document.getElementById('cookie').value.trim();
@@ -63,12 +72,14 @@ async function api(path, options = {}) {
 
 fetchMetaBtn?.addEventListener('click', async () => {
   const id = document.getElementById('id').value.trim();
+  const cookie = document.getElementById('cookie').value.trim();
   if (!id) {
     appendLog('请先填写作品 ID', 'download-log-err');
     setStatus('缺少作品 ID', 'error');
     return;
   }
   clearLog();
+  warnIfCookieIncomplete(cookie);
   setStatus('正在查询', 'running');
   appendLog('正在请求 /api/illust/' + id + ' …');
   try {
@@ -110,6 +121,7 @@ form?.addEventListener('submit', async (event) => {
   }
 
   clearLog();
+  warnIfCookieIncomplete(cookie);
   startBtn.disabled = true;
   setStatus('正在下载', 'running');
   appendLog('开始下载…');

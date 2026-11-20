@@ -33,7 +33,8 @@ ob_start();
                 </div>
                 <p class="download-privacy-note" id="cookieHint">
                     <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                    <span>仅保存在当前浏览器，下载时随请求发送。</span>
+                    <span>仅保存在当前浏览器，下载时随请求发送。请从 DevTools → Network 的 Cookie 请求头复制完整值：
+                        <code>document.cookie</code> 读不到 HttpOnly 的 PHPSESSID，只贴它会以未登录身份请求，受限作品会返回 404。</span>
                 </p>
     
                 <div class="download-options">

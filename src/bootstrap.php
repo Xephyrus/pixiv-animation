@@ -48,24 +48,35 @@ function request_json(): array
 
 function request_cookie(): string
 {
+    $raw = '';
     $header = $_SERVER['HTTP_X_PIXIV_COOKIE'] ?? '';
     if (is_string($header) && trim($header) !== '') {
-        return trim($header);
+        $raw = $header;
+    } else {
+        $json = request_json();
+        if (!empty($json['cookie']) && is_string($json['cookie'])) {
+            $raw = $json['cookie'];
+        } else {
+            $raw = (string) ($_POST['cookie'] ?? $_GET['cookie'] ?? '');
+            if (trim($raw) === '') {
+                // 兼容直接从浏览器 / curl 复制过来的请求：Cookie 走标准请求头时也要能转发给 Pixiv
+                $raw = (string) ($_SERVER['HTTP_COOKIE'] ?? '');
+            }
+        }
     }
-    $json = request_json();
-    if (!empty($json['cookie']) && is_string($json['cookie'])) {
-        return trim($json['cookie']);
+
+    return normalize_cookie_value($raw);
+}
+
+/** 允许直接粘贴 “Cookie: xxx” 整行或带引号的值。 */
+function normalize_cookie_value(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
     }
-    $param = trim((string) ($_POST['cookie'] ?? $_GET['cookie'] ?? ''));
-    if ($param !== '') {
-        return $param;
-    }
-    // 兼容直接从浏览器 / curl 复制过来的请求：Cookie 走标准请求头时也要能转发给 Pixiv
-    $cookie = $_SERVER['HTTP_COOKIE'] ?? '';
-    if (is_string($cookie) && trim($cookie) !== '') {
-        return trim($cookie);
-    }
-    return '';
+    $value = preg_replace('/^cookie\s*:\s*/i', '', $value) ?? $value;
+    return trim($value, " \t\"'");
 }
 
 function request_proxy_port(): int

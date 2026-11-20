@@ -18,7 +18,7 @@
 
 - PHP **8.1+**（开发机为 8.5），扩展：`pdo_sqlite`、`sqlite3`、`curl`、`zip`、`openssl`
 - 能访问 `www.pixiv.net` / `i.pximg.net` 的网络环境；本机代理默认探测 `127.0.0.1:7897`、`127.0.0.1:7890`
-- 已登录 Pixiv 的 Cookie（动图与受限作品的 `ugoira_meta`、原图下载都需要）
+- 已登录 Pixiv 的 Cookie（动图与受限作品的 `ugoira_meta`、原图下载都需要）。必须是完整的 `Cookie` 请求头，包含 HttpOnly 的 `PHPSESSID`；浏览器 `document.cookie` 读不到它，只贴 `document.cookie` 会以未登录身份请求，受限作品会返回 404
 
 ## 快速开始
 

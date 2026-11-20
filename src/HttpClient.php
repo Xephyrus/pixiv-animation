@@ -142,7 +142,7 @@ final class HttpClient
             $message .= '：' . trim($decoded['message']);
         }
         if ($status === 404) {
-            $message .= '（作品不存在，或该作品需要登录 Cookie 才能访问）';
+            $message .= '（作品不存在，或需要登录 Cookie；Cookie 缺 HttpOnly 的 PHPSESSID 时会这样，document.cookie 读不到它）';
         }
         return $message;
     }
