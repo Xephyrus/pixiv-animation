@@ -47,6 +47,11 @@ const lightboxOptions = {
 function bindLightbox() {
   if (window.Fancybox) {
     window.Fancybox.bind('[data-fancybox="gallery"]', lightboxOptions);
+    // 灯箱接管后不再需要新标签页兜底
+    for (const link of grid.querySelectorAll('a[data-fancybox]')) {
+      link.removeAttribute('target');
+      link.removeAttribute('rel');
+    }
     return;
   }
 
@@ -95,7 +100,7 @@ try {
   grid.innerHTML = files.map((file, index) => {
     const src = `/downloads/${encodeURIComponent(work.id)}/${encodeURIComponent(file)}`;
     const safeName = escapeHtml(file);
-    return `<a href="${src}" data-fancybox="gallery" data-caption="${safeName}" aria-label="查看大图 ${safeName}">
+    return `<a href="${src}" target="_blank" rel="noopener" data-fancybox="gallery" data-caption="${safeName}" aria-label="查看大图 ${safeName}">
         <img src="${src}" alt="${safeName}" loading="${index < 8 ? 'eager' : 'lazy'}" decoding="async">
     </a>`;
   }).join('');
