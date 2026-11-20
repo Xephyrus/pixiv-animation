@@ -6,12 +6,6 @@
     dark: '深色',
     auto: '自动',
   };
-  const themeIcons = {
-    light: 'fa-sun',
-    dark: 'fa-moon',
-    auto: 'fa-circle-half-stroke',
-  };
-
   function getPreferredTheme() {
     const storedTheme = localStorage.getItem(storageKey);
     return themes.includes(storedTheme) ? storedTheme : 'auto';
@@ -24,6 +18,7 @@
 
   function applyTheme(theme) {
     const resolved = resolveTheme(theme);
+    document.documentElement.dataset.themePreference = theme;
     document.documentElement.dataset.bsTheme = resolved;
     document.documentElement.dataset.mdbTheme = resolved;
   }
@@ -46,17 +41,11 @@
     if (!menu.id) menu.id = 'themeMenu';
     toggle.setAttribute('aria-controls', 'themeMenu');
 
-    const icon =
-      toggle.querySelector('.theme-icon-active') || toggle.querySelector('i.fas, i.fa-solid');
     const buttons = [...menu.querySelectorAll('.menu-item[data-bs-theme-value], .menu-item[data-theme]')];
 
     function showActiveTheme(theme) {
       if (!themes.includes(theme)) return;
 
-      if (icon) {
-        icon.classList.remove('fa-sun', 'fa-moon', 'fa-circle-half-stroke');
-        icon.classList.add(themeIcons[theme]);
-      }
       toggle.setAttribute('aria-label', `切换主题（${themeLabels[theme]}）`);
 
       buttons.forEach((button) => {

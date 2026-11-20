@@ -51,9 +51,10 @@ $content = $content ?? '';
 </head>
 
 <body>
+    <a class="skip-to-content" href="#content-start">跳到主要内容</a>
     <div id="app">
         <?php require __DIR__ . '/partials/navbar.php'; ?>
-        <div class="container container-mc pt-4">
+        <div id="content-start" class="container container-mc pt-4" tabindex="-1">
             <?= $content ?>
         </div>
     </div>

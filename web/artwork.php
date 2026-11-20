@@ -48,10 +48,8 @@ ob_start();
         <p class="gallery-description" id="meta"><?= h($metaText) ?></p>
     </div>
     <div class="d-flex gap-2">
-        <a class="btn-outline theme-primary" id="editLink" href="/edit/<?= h($id) ?>"
-            style="color: var(--gallery-accent); border-color: var(--gallery-accent-border);">编辑信息</a>
-        <a class="btn-outline theme-primary" href="/"
-            style="color: var(--gallery-accent); border-color: var(--gallery-accent-border);">返回图库</a>
+        <a class="btn-outline theme-primary" id="editLink" href="/edit/<?= h($id) ?>">编辑信息</a>
+        <a class="btn-outline theme-primary" href="/">返回图库</a>
     </div>
 </header>
 <div class="artwork-grid mb-5" id="grid" data-ssr="1">

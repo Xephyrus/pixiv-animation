@@ -8,6 +8,7 @@ const frameCounter = document.getElementById("frameCounter");
 const frameDelay = document.getElementById("frameDelay");
 const playPauseButton = document.getElementById("playPauseButton");
 const progress = document.getElementById("progress");
+const playerBackButton = document.getElementById("playerBackButton");
 
 let currentFrame = 0;
 let isPlaying = false;
@@ -94,6 +95,14 @@ document.addEventListener("visibilitychange", () => {
 });
 
 playPauseButton.addEventListener("click", () => setPlaying(!isPlaying));
+playerBackButton.addEventListener("click", () => {
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+  window.location.assign("/");
+});
+
 document.addEventListener("keydown", (event) => {
   if (
     event.code !== "Space" ||

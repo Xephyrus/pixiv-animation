@@ -1,6 +1,7 @@
 const form = document.getElementById('editForm');
 const statusEl = document.getElementById('editStatus');
 const previewName = document.getElementById('previewName');
+const saveButton = document.getElementById('saveBtn');
 
 function setStatus(text, state) {
   if (!statusEl) return;
@@ -19,13 +20,19 @@ function currentPayload() {
 
 function refreshPreview(work) {
   if (!previewName) return;
-  previewName.textContent = work.character || work.title || work.name || work.id;
+  previewName.textContent = work.character || work.title || work.name || work.id || form?.dataset.id || '';
 }
+
+form?.querySelectorAll('[name="character"], [name="title"], [name="name"]').forEach((input) => {
+  input.addEventListener('input', () => refreshPreview(currentPayload()));
+});
 
 form?.addEventListener('submit', async (event) => {
   event.preventDefault();
   const id = form.dataset.id;
   setStatus('保存中…', 'running');
+  saveButton.disabled = true;
+  form.setAttribute('aria-busy', 'true');
 
   try {
     const res = await fetch('/api/works/' + encodeURIComponent(id), {
@@ -46,6 +53,10 @@ form?.addEventListener('submit', async (event) => {
     refreshPreview(work);
     setStatus('已保存', 'success');
   } catch (error) {
-    setStatus('保存失败：' + (error.message || error), 'error');
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(`保存失败：${message}。请检查内容或网络连接后重试。`, 'error');
+  } finally {
+    saveButton.disabled = false;
+    form.removeAttribute('aria-busy');
   }
 });

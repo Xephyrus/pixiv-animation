@@ -34,6 +34,16 @@ ob_start();
 ?>
 <main class="player-page d-flex align-items-center">
     <div class="player-shell">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <button id="playerBackButton" class="btn-outline theme-primary btn-styled" type="button">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                返回上一页
+            </button>
+            <a role="button" class="btn-outline theme-primary btn-styled" href="/edit/<?= h($id) ?>">
+                <i class="fa-regular fa-edit" aria-hidden="true"></i>
+                编辑信息
+            </a>
+        </div>
         <section class="player" aria-label="动画播放器">
             <header class="player-header">
                 <h1>Ugoira Player</h1>
@@ -41,11 +51,7 @@ ob_start();
                 <span class="frame-counter" id="frameCounter" aria-live="polite">加载中...</span>
             </header>
             <div class="stage">
-                <img id="animationFrame"
-                    src="<?= h($firstFrameSrc) ?>"
-                    alt="动画帧 1"
-                    decoding="async"
-                    class="active">
+                <img id="animationFrame" src="<?= h($firstFrameSrc) ?>" alt="动画帧 1" decoding="async" class="active">
                 <img id="bufferFrame" alt="" aria-hidden="true" decoding="async">
             </div>
             <div class="progress-track" aria-hidden="true">
@@ -56,7 +62,6 @@ ob_start();
                     <button id="playPauseButton" class="btn-solid theme-primary player-action" type="button"
                         aria-pressed="false">播放</button>
                     <span class="hint">空格键播放 / 暂停</span>
-                    <a class="hint" href="/edit/<?= h($id) ?>">编辑信息</a>
                 </div>
                 <span class="frame-counter" id="frameDelay">45 ms / 帧</span>
             </footer>
@@ -65,7 +70,7 @@ ob_start();
 </main>
 
 <script>
-window.animationData = <?= json_encode($animation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    window.animationData = <?= json_encode($animation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
 <?php
 $content = ob_get_clean();

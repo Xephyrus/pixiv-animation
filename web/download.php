@@ -62,11 +62,11 @@ ob_start();
                 </label>
     
                 <div class="download-actions">
-                    <button type="submit" class="btn-solid theme-primary download-action-primary" id="startBtn">
+                    <button type="submit" class="btn-solid theme-primary download-action-primary btn-styled" id="startBtn">
                         <i class="fa-solid fa-download" aria-hidden="true"></i>
                         开始下载
                     </button>
-                    <button type="button" class="btn-outline theme-primary download-action-secondary" id="fetchMetaBtn">
+                    <button type="button" class="btn-outline theme-primary download-action-secondary btn-styled" id="fetchMetaBtn">
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                         查询作品信息
                     </button>
