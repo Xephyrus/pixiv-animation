@@ -54,9 +54,9 @@ ob_start();
             style="color: var(--gallery-accent); border-color: var(--gallery-accent-border);">返回图库</a>
     </div>
 </header>
-<div class="artwork-grid mb-5" id="grid">
+<div class="artwork-grid mb-5" id="grid" data-ssr="1">
     <?php if ($files === []): ?>
-        <p class="gallery-description">这个作品还没有本地文件，请先到<a href="/download">下载页</a>抓取。</p>
+        <p class="artwork-empty">这个作品还没有本地文件，请先到<a href="/download">下载页</a>抓取。</p>
     <?php else: ?>
         <?php foreach ($files as $index => $file): ?>
             <?php
@@ -66,7 +66,9 @@ ob_start();
             <a href="<?= h($src) ?>" target="_blank" rel="noopener" data-fancybox="gallery"
                 data-caption="<?= h($file) ?>" aria-label="<?= h($label . '：' . $file) ?>">
                 <img src="<?= h($src) ?>" alt="<?= h($file) ?>"
-                    loading="<?= $index < 8 ? 'eager' : 'lazy' ?>" decoding="async">
+                    width="300" height="400"
+                    loading="<?= $index < 8 ? 'eager' : 'lazy' ?>"
+                    <?= $index < 4 ? 'fetchpriority="high" ' : '' ?>decoding="async">
             </a>
         <?php endforeach; ?>
     <?php endif; ?>
