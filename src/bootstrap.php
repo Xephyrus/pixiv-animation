@@ -56,7 +56,16 @@ function request_cookie(): string
     if (!empty($json['cookie']) && is_string($json['cookie'])) {
         return trim($json['cookie']);
     }
-    return trim((string) ($_POST['cookie'] ?? $_GET['cookie'] ?? ''));
+    $param = trim((string) ($_POST['cookie'] ?? $_GET['cookie'] ?? ''));
+    if ($param !== '') {
+        return $param;
+    }
+    // 兼容直接从浏览器 / curl 复制过来的请求：Cookie 走标准请求头时也要能转发给 Pixiv
+    $cookie = $_SERVER['HTTP_COOKIE'] ?? '';
+    if (is_string($cookie) && trim($cookie) !== '') {
+        return trim($cookie);
+    }
+    return '';
 }
 
 function request_proxy_port(): int

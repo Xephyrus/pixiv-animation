@@ -99,7 +99,7 @@ docker run -d --name pixiv-animation -p 5400:5400 \
 | DELETE | `/api/works/{id}` | 删除作品，可带 `deleteFiles` |
 | POST | `/api/sync` | 扫描已有 ugoira 目录入库 |
 
-Cookie 与代理端口可通过请求头 `X-Pixiv-Cookie`、`X-Proxy-Port` 传入。
+Cookie 与代理端口可通过请求头 `X-Pixiv-Cookie`、`X-Proxy-Port` 传入；也可以直接带浏览器里的标准 `Cookie` 请求头，例如 `curl -H "Cookie: PHPSESSID=..." http://127.0.0.1:5400/api/ugoira_meta/{id}`。
 
 ## 命令行脚本
 

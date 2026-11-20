@@ -129,9 +129,22 @@ final class HttpClient
             throw new RuntimeException('请求失败: ' . ($error !== '' ? $error : 'curl error ' . $errno));
         }
         if ($status < 200 || $status >= 300) {
-            throw new RuntimeException('Pixiv 返回 HTTP ' . $status);
+            throw new RuntimeException(self::describeHttpError($status, $body));
         }
         return $body;
+    }
+
+    private static function describeHttpError(int $status, string $body): string
+    {
+        $message = 'Pixiv 返回 HTTP ' . $status;
+        $decoded = json_decode($body, true);
+        if (is_array($decoded) && is_string($decoded['message'] ?? null) && trim($decoded['message']) !== '') {
+            $message .= '：' . trim($decoded['message']);
+        }
+        if ($status === 404) {
+            $message .= '（作品不存在，或该作品需要登录 Cookie 才能访问）';
+        }
+        return $message;
     }
 
     /** @param \CurlHandle|resource $ch */
