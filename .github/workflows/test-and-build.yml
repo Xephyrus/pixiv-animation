@@ -25,7 +25,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_sqlite, sqlite3, curl, zip, mbstring
+          extensions: pdo_sqlite, sqlite3, curl, zip, mbstring, gd
           coverage: none
 
       - name: 语法检查
@@ -63,6 +63,14 @@ jobs:
           curl -fsS 'http://127.0.0.1:8080/download' -o /tmp/download.html
           grep -q '抓取下载' /tmp/download.html
           test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/api/works/999999999')" = "404"
+
+          mkdir -p downloads/thumb-test
+          php -r '$im = imagecreatetruecolor(800, 600); imagefilledrectangle($im, 0, 0, 799, 599, imagecolorallocate($im, 200, 120, 60)); imagejpeg($im, "downloads/thumb-test/000000.jpg", 90);'
+          thumb_status="$(curl -s -o /tmp/thumb.jpg -w '%{http_code}' 'http://127.0.0.1:8080/thumb/thumb-test/000000.jpg?w=64')"
+          echo "thumb status=${thumb_status}"
+          test "$thumb_status" = "200"
+          php -r '$info = getimagesize("/tmp/thumb.jpg"); if ($info === false) { fwrite(STDERR, "不是有效图片\n"); exit(1); } echo "thumb {$info[0]}x{$info[1]}\n"; exit($info[0] === 64 ? 0 : 1);'
+          test -f "downloads/.thumbs/thumb-test/w64_000000.jpg"
 
       - name: 元数据写入测试
         run: |

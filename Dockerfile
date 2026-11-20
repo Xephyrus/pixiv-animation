@@ -1,9 +1,11 @@
 FROM php:8.4-cli
 
-# 官方镜像已内置 pdo_sqlite / sqlite3 / curl / openssl，只需补 zip 扩展
+# 官方镜像已内置 pdo_sqlite / sqlite3 / curl / openssl；补 zip 与 gd（/thumb 缩略图需要）
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libzip-dev \
-    && docker-php-ext-install zip \
+    && apt-get install -y --no-install-recommends \
+        libzip-dev libjpeg62-turbo-dev libpng-dev libwebp-dev libfreetype6-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
+    && docker-php-ext-install zip gd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html

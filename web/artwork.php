@@ -61,14 +61,16 @@ ob_start();
         <?php foreach ($files as $index => $file): ?>
             <?php
             $src = $frameBase . rawurlencode($file);
+            $thumb = '/thumb/' . rawurlencode(basename((string) $work['path'])) . '/' . rawurlencode($file) . '?w=420';
             $label = sprintf('第 %d / %d 张', $index + 1, count($files));
             ?>
             <a href="<?= h($src) ?>" target="_blank" rel="noopener" data-fancybox="gallery"
                 data-caption="<?= h($file) ?>" aria-label="<?= h($label . '：' . $file) ?>">
-                <img src="<?= h($src) ?>" alt="<?= h($file) ?>"
+                <img src="<?= h($thumb) ?>" alt="<?= h($file) ?>"
                     width="300" height="400"
                     loading="<?= $index < 8 ? 'eager' : 'lazy' ?>"
-                    <?= $index < 4 ? 'fetchpriority="high" ' : '' ?>decoding="async">
+                    <?= $index < 4 ? 'fetchpriority="high" ' : '' ?>decoding="async"
+                    onerror="this.onerror=null;this.src='<?= h($src) ?>'">
             </a>
         <?php endforeach; ?>
     <?php endif; ?>

@@ -8,6 +8,7 @@
 
 - **作品库**：分页展示、关键词搜索（角色 / 标题 / ID / 标签）、主题切换
 - **大图查看**：作品页集成 Fancybox 灯箱，支持缩放、1:1、旋转、全屏、缩略图与左右切换（手机可滑动翻页与双指缩放）
+- **缩略图**：`/thumb/{folder}/{file}?w=420` 用 GD 生成并缓存 JPEG，卡片加载小图、灯箱才取原图，首屏更快更稳
 - **抓取下载**：按作品 ID 或链接抓取，`illustType` 0/1 取原图，2 下载 ugoira 压缩包并解压
 - **实时进度**：下载接口以 SSE 推送开始 / 单文件进度 / 完成 / 出错事件，页面进度条与日志即时更新
 - **并发下载**：多图作品按 `DOWNLOAD_CONCURRENCY` 并行下载，失败文件自动换扩展名重试
@@ -20,7 +21,7 @@
 
 ## 环境要求
 
-- PHP **8.1+**（开发机为 8.5），扩展：`pdo_sqlite`、`sqlite3`、`curl`、`zip`、`openssl`
+- PHP **8.1+**（开发机为 8.5），扩展：`pdo_sqlite`、`sqlite3`、`curl`、`zip`、`openssl`、`gd`（缩略图端点需要，缺失时自动回退原图）
 - 能访问 `www.pixiv.net` / `i.pximg.net` 的网络环境；本机代理默认探测 `127.0.0.1:7897`、`127.0.0.1:7890`
 - 已登录 Pixiv 的 Cookie（动图与受限作品的 `ugoira_meta`、原图下载都需要）。必须是完整的 `Cookie` 请求头，包含 HttpOnly 的 `PHPSESSID`；浏览器 `document.cookie` 读不到它，只贴 `document.cookie` 会以未登录身份请求，受限作品会返回 404
 
@@ -107,6 +108,8 @@ docker run -d --name pixiv-animation -p 5400:5400 \
 | POST | `/api/sync` | 扫描已有 ugoira 目录入库 |
 
 Cookie 与代理端口可通过请求头 `X-Pixiv-Cookie`、`X-Proxy-Port` 传入；也可以直接带浏览器里的标准 `Cookie` 请求头，例如 `curl -H "Cookie: PHPSESSID=..." http://127.0.0.1:5400/api/ugoira_meta/{id}`。
+
+`GET /thumb/{folder}/{file}?w=420` 是作品页使用的缩略图端点：用 GD 按宽度生成 JPEG，缓存到 `downloads/.thumbs/{folder}/`；源图比目标窄、或没有 `gd` 时直接返回原图。`w` 取值 64–960，默认 420。
 
 `POST /api/download` 支持两种返回方式：请求头带 `Accept: text/event-stream` 时以 SSE 推送 `open` / `start` / `file` / `progress` / `info` / `done` / `error` 事件，下载页即用这种方式实时显示进度；不带时仍返回下载完成后的最终 JSON。注意 `php -S` 是单进程，下载期间其它请求会排队，生产环境建议用 nginx / php-fpm 或容器部署。
 

@@ -33,6 +33,13 @@ if (preg_match('#^/edit/([^/]+)/?$#', $uri, $m)) {
     return true;
 }
 
+if (preg_match('#^/thumb/([^/]+)/([^/]+)$#', $uri, $m)) {
+    $_GET['id'] = rawurldecode($m[1]);
+    $_GET['file'] = rawurldecode($m[2]);
+    require __DIR__ . '/web/thumb.php';
+    return true;
+}
+
 if (preg_match('#^/downloads/(\d+)_ugoira1920x1080/index\.html$#', $uri, $m)) {
     header('Location: /play/' . rawurlencode($m[1]), true, 302);
     return true;
