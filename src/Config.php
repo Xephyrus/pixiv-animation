@@ -9,6 +9,7 @@ final class Config
     public string $proxyHost;
     public int $proxyPort;
     public int $delayMs;
+    public int $concurrency;
     public int $timeoutSec;
     public string $downloadDir;
     public string $ugoiraDir;
@@ -31,6 +32,7 @@ final class Config
         $cfg->proxyHost = self::env('PROXY_HOST', '127.0.0.1');
         $cfg->proxyPort = (int) self::env('PROXY_PORT', '7897');
         $cfg->delayMs = (int) self::env('DOWNLOAD_DELAY_MS', '1000');
+        $cfg->concurrency = max(1, min(8, (int) self::env('DOWNLOAD_CONCURRENCY', '4')));
         $cfg->timeoutSec = (int) self::env('DOWNLOAD_TIMEOUT_SEC', '60');
         $cfg->downloadDir = self::resolvePath($rootDir, self::env('DOWNLOAD_DIR', './downloads'));
         $cfg->ugoiraDir = self::resolvePath($rootDir, self::env('UGOIRA_DIR', './downloads'));

@@ -7,6 +7,8 @@ final class HttpClient
     /** @var list<int> */
     private array $allowedPorts;
 
+    private ?int $cachedProxyPort = null;
+
     public function __construct(
         private readonly Config $config,
         private readonly int $proxyPort = 0,
@@ -16,7 +18,7 @@ final class HttpClient
 
     public function resolvedProxyPort(): int
     {
-        return $this->resolveProxyPort($this->proxyPort);
+        return $this->cachedProxyPort ??= $this->resolveProxyPort($this->proxyPort);
     }
 
     public function getJson(string $url, string $cookie = ''): array
@@ -29,7 +31,10 @@ final class HttpClient
         return $data;
     }
 
-    public function download(string $url, string $savePath, string $cookie = ''): void
+    /**
+     * @param callable(int, int):void|null $onProgress ($downloaded, $totalBytes)
+     */
+    public function download(string $url, string $savePath, string $cookie = '', ?callable $onProgress = null): void
     {
         $dir = dirname($savePath);
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
@@ -48,27 +53,7 @@ final class HttpClient
             throw new RuntimeException('无法初始化 curl');
         }
 
-        $headers = [
-            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Referer: https://www.pixiv.net/',
-            'Accept: */*',
-        ];
-        if ($cookie !== '') {
-            $headers[] = 'Cookie: ' . $cookie;
-        }
-
-        $port = $this->resolveProxyPort($this->proxyPort);
-        curl_setopt_array($ch, [
-            CURLOPT_FILE => $fp,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => $this->config->timeoutSec,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_PROXY => $this->config->proxyHost,
-            CURLOPT_PROXYPORT => $port,
-            CURLOPT_PROXYTYPE => CURLPROXY_HTTP,
-            CURLOPT_FAILONERROR => false,
-        ]);
-        $this->applySslOptions($ch);
+        $this->configureDownload($ch, $fp, $cookie, $onProgress);
 
         $ok = curl_exec($ch);
         $errno = curl_errno($ch);
@@ -89,6 +74,164 @@ final class HttpClient
             @unlink($tmp);
             throw new RuntimeException('无法保存文件: ' . $savePath);
         }
+    }
+
+    /**
+     * 并发下载多个文件。失败项写入 error，调用方可按需重试。
+     *
+     * @param array<int, array{url:string, path:string, filename?:string}> $tasks 键名会原样保留在返回值中
+     * @param callable(int, int, int, array):void|null $onProgress ($index, $downloaded, $totalBytes, $task)
+     * @return array<int, array{path:?string, size:int, error:?string}>
+     */
+    public function downloadMany(array $tasks, string $cookie, int $concurrency, ?callable $onProgress = null): array
+    {
+        $results = [];
+        if ($tasks === []) {
+            return $results;
+        }
+
+        $concurrency = max(1, $concurrency);
+        $queue = array_keys($tasks);
+        /** @var array<int, array{ch: \CurlHandle, fp: resource, tmp: string, path: string}> $active */
+        $active = [];
+        $handleIndex = [];
+        $lastEmit = [];
+
+        $multi = curl_multi_init();
+        $port = $this->resolvedProxyPort();
+
+        while ($queue !== [] || $active !== []) {
+            while (count($active) < $concurrency && $queue !== []) {
+                $index = array_shift($queue);
+                $task = $tasks[$index];
+                $dir = dirname($task['path']);
+                if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+                    $results[$index] = ['path' => null, 'size' => 0, 'error' => '无法创建目录: ' . $dir];
+                    continue;
+                }
+
+                $tmp = $task['path'] . '.part';
+                $fp = @fopen($tmp, 'wb');
+                if ($fp === false) {
+                    $results[$index] = ['path' => null, 'size' => 0, 'error' => '无法写入临时文件: ' . $tmp];
+                    continue;
+                }
+
+                $ch = curl_init($task['url']);
+                if ($ch === false) {
+                    fclose($fp);
+                    @unlink($tmp);
+                    $results[$index] = ['path' => null, 'size' => 0, 'error' => '无法初始化 curl'];
+                    continue;
+                }
+
+                $this->configureDownload($ch, $fp, $cookie, $onProgress === null ? null : static function (int $downloaded, int $totalBytes) use ($index, $task, &$lastEmit, $onProgress): void {
+                    $now = microtime(true);
+                    if ($now - ($lastEmit[$index] ?? 0.0) < 0.15) {
+                        return;
+                    }
+                    $lastEmit[$index] = $now;
+                    $onProgress($index, $downloaded, $totalBytes, $task);
+                }, $port);
+
+                curl_multi_add_handle($multi, $ch);
+                $active[$index] = ['ch' => $ch, 'fp' => $fp, 'tmp' => $tmp, 'path' => $task['path']];
+                $handleIndex[spl_object_id($ch)] = $index;
+            }
+
+            if ($active === []) {
+                break;
+            }
+
+            do {
+                $status = curl_multi_exec($multi, $running);
+            } while ($status === CURLM_CALL_MULTI_PERFORM);
+
+            if ($running > 0) {
+                curl_multi_select($multi, 0.2);
+            }
+
+            while (($info = curl_multi_info_read($multi)) !== false) {
+                $ch = $info['handle'];
+                $key = spl_object_id($ch);
+                $index = $handleIndex[$key] ?? null;
+                curl_multi_remove_handle($multi, $ch);
+                if ($index === null) {
+                    unset($ch);
+                    continue;
+                }
+
+                $entry = $active[$index];
+                $errno = (int) $info['result'];
+                $error = curl_error($ch);
+                $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                unset($ch, $handleIndex[$key]);
+
+                fclose($entry['fp']);
+                unset($active[$index]);
+
+                if ($errno !== 0 || $httpCode < 200 || $httpCode >= 300) {
+                    @unlink($entry['tmp']);
+                    $results[$index] = [
+                        'path' => null,
+                        'size' => 0,
+                        'error' => $errno !== 0 ? ('curl error ' . $errno . ($error !== '' ? ' ' . $error : '')) : ('HTTP ' . $httpCode),
+                    ];
+                    continue;
+                }
+
+                $size = (int) (filesize($entry['tmp']) ?: 0);
+                if (!rename($entry['tmp'], $entry['path'])) {
+                    @unlink($entry['tmp']);
+                    $results[$index] = ['path' => null, 'size' => 0, 'error' => '无法保存文件: ' . $entry['path']];
+                    continue;
+                }
+                $results[$index] = ['path' => $entry['path'], 'size' => $size, 'error' => null];
+            }
+        }
+
+        unset($multi);
+
+        return $results;
+    }
+
+    /**
+     * @param \CurlHandle|resource $ch
+     * @param resource $fp
+     * @param callable(int, int):void|null $onProgress
+     * @param int|null $port 已解析的代理端口，避免每个文件都探测一次
+     */
+    private function configureDownload($ch, $fp, string $cookie, ?callable $onProgress, ?int $port = null): void
+    {
+        $headers = [
+            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer: https://www.pixiv.net/',
+            'Accept: */*',
+        ];
+        if ($cookie !== '') {
+            $headers[] = 'Cookie: ' . $cookie;
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_FILE => $fp,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => $this->config->timeoutSec,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_PROXY => $this->config->proxyHost,
+            CURLOPT_PROXYPORT => $port ?? $this->resolvedProxyPort(),
+            CURLOPT_PROXYTYPE => CURLPROXY_HTTP,
+            CURLOPT_FAILONERROR => false,
+        ]);
+
+        if ($onProgress !== null) {
+            curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+            curl_setopt($ch, CURLOPT_XFERINFOFUNCTION, static function ($ch, int $downloadTotal, int $downloaded) use ($onProgress): int {
+                $onProgress($downloaded, $downloadTotal);
+                return 0;
+            });
+        }
+
+        $this->applySslOptions($ch);
     }
 
     private function request(string $url, string $cookie = ''): string

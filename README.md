@@ -8,6 +8,8 @@
 
 - **作品库**：分页展示、关键词搜索（角色 / 标题 / ID / 标签）、主题切换
 - **抓取下载**：按作品 ID 或链接抓取，`illustType` 0/1 取原图，2 下载 ugoira 压缩包并解压
+- **实时进度**：下载接口以 SSE 推送开始 / 单文件进度 / 完成 / 出错事件，页面进度条与日志即时更新
+- **并发下载**：多图作品按 `DOWNLOAD_CONCURRENCY` 并行下载，失败文件自动换扩展名重试
 - **动图播放**：读取 `meta_json` 里的 `frames.file` 与逐帧 `delay`，按原速播放，支持播放 / 暂停与进度显示
 - **元数据**：动图记录 `src`、`originalSrc`、`mime_type` 与逐帧延迟，播放节奏与 Pixiv 一致
 - **本地同步**：扫描已有的 `downloads/{id}_ugoira1920x1080/` 目录入库
@@ -58,7 +60,8 @@ php -S 0.0.0.0:5400 router.php
 | `DB_PATH` | `./data/pixiv.db` | SQLite 文件 |
 | `PROXY_HOST` | `127.0.0.1` | 下载代理地址 |
 | `PROXY_PORT` | `7897` | 下载代理端口 |
-| `DOWNLOAD_DELAY_MS` | `1000` | 多图作品下载间隔 |
+| `DOWNLOAD_DELAY_MS` | `1000` | 仅当并发数为 1 时，多图作品的下载间隔 |
+| `DOWNLOAD_CONCURRENCY` | `4` | 同时下载的文件数（1–8），越大越快，但请求更密集 |
 | `DOWNLOAD_TIMEOUT_SEC` | `60` | 单次请求超时 |
 | `CURL_CA_FILE` | `./data/cacert.pem` | CA 证书 |
 | `SSL_VERIFY` | `1` | 代理做 HTTPS 解密报证书错误时可设 `0` |
@@ -103,6 +106,8 @@ docker run -d --name pixiv-animation -p 5400:5400 \
 | POST | `/api/sync` | 扫描已有 ugoira 目录入库 |
 
 Cookie 与代理端口可通过请求头 `X-Pixiv-Cookie`、`X-Proxy-Port` 传入；也可以直接带浏览器里的标准 `Cookie` 请求头，例如 `curl -H "Cookie: PHPSESSID=..." http://127.0.0.1:5400/api/ugoira_meta/{id}`。
+
+`POST /api/download` 支持两种返回方式：请求头带 `Accept: text/event-stream` 时以 SSE 推送 `open` / `start` / `file` / `progress` / `info` / `done` / `error` 事件，下载页即用这种方式实时显示进度；不带时仍返回下载完成后的最终 JSON。注意 `php -S` 是单进程，下载期间其它请求会排队，生产环境建议用 nginx / php-fpm 或容器部署。
 
 ## 命令行脚本
 

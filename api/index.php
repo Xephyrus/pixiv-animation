@@ -86,8 +86,36 @@ function route_api(string $method, string $path): void
         $cookie = request_cookie();
         $redownload = !empty($json['redownload']);
         $character = trim((string) ($json['character'] ?? ''));
-        $result = make_downloader()->downloadById($id, $cookie, $redownload, $character);
-        Response::ok($result);
+        $stream = str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'text/event-stream');
+
+        if (!$stream) {
+            $result = make_downloader()->downloadById($id, $cookie, $redownload, $character);
+            Response::ok($result);
+        }
+
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        header('Content-Type: text/event-stream; charset=utf-8');
+        header('Cache-Control: no-cache, no-store');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+
+        $send = static function (array $event): void {
+            echo 'data: ' . json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+            flush();
+        };
+
+        $send(['type' => 'open']);
+
+        try {
+            $result = make_downloader()->downloadById($id, $cookie, $redownload, $character, $send);
+            $send(['type' => 'done', 'result' => $result]);
+        } catch (Throwable $e) {
+            $send(['type' => 'error', 'message' => $e->getMessage()]);
+        }
+
+        exit;
     }
 
     if (preg_match('#^/works/([^/]+)/character$#', $path, $m) && in_array($method, ['POST', 'PUT'], true)) {

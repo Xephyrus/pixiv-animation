@@ -12,8 +12,16 @@ final class Downloader
     ) {
     }
 
-    public function downloadById(string $id, string $cookie, bool $redownload = false, string $character = ''): array
-    {
+    /**
+     * @param callable(array):void|null $emit 进度事件回调，传 null 时只返回最终结果
+     */
+    public function downloadById(
+        string $id,
+        string $cookie,
+        bool $redownload = false,
+        string $character = '',
+        ?callable $emit = null
+    ): array {
         $id = PixivApi::normalizeId($id);
         if ($cookie === '') {
             throw new InvalidArgumentException('请输入 Pixiv Cookie');
@@ -27,16 +35,19 @@ final class Downloader
 
         $type = (int) ($body['illustType'] ?? -1);
         return match ($type) {
-            0, 1 => $this->downloadStill($id, $body, $cookie, $redownload),
-            2 => $this->downloadUgoira($id, $body, $cookie, $redownload, $character),
+            0, 1 => $this->downloadStill($id, $body, $cookie, $redownload, $emit),
+            2 => $this->downloadUgoira($id, $body, $cookie, $redownload, $character, $emit),
             default => throw new RuntimeException('未知的 illustType: ' . $type),
         };
     }
 
-    private function downloadStill(string $id, array $body, string $cookie, bool $redownload): array
+    private function downloadStill(string $id, array $body, string $cookie, bool $redownload, ?callable $emit = null): array
     {
         $urls = PixivApi::buildOriginalUrls($body);
         $taskDir = $this->config->downloadDir . DIRECTORY_SEPARATOR . $id;
+        $title = (string) ($body['title'] ?? $id);
+        $illustType = (int) ($body['illustType'] ?? 0);
+        $total = count($urls);
 
         if ($redownload && is_dir($taskDir)) {
             $this->clearDirectory($taskDir, false);
@@ -45,11 +56,21 @@ final class Downloader
             throw new RuntimeException('无法创建下载目录: ' . $taskDir);
         }
 
+        $this->emit($emit, [
+            'type' => 'start',
+            'id' => $id,
+            'title' => $title,
+            'illustType' => $illustType,
+            'total' => $total,
+        ]);
+
         $logs = [];
         $files = [];
         $success = 0;
         $fail = 0;
         $totalSize = 0;
+        /** @var array<int, array{url:string, path:string, filename:string}> $pending */
+        $pending = [];
 
         foreach ($urls as $i => $url) {
             $filename = $this->filenameFromUrl($url);
@@ -59,46 +80,98 @@ final class Downloader
             $existing = $this->findExistingImage($taskDir, $base);
             if ($existing !== null && !$redownload) {
                 $size = (int) filesize($taskDir . DIRECTORY_SEPARATOR . $existing);
-                $files[] = ['filename' => $existing, 'size' => $size];
+                $files[$i] = ['filename' => $existing, 'size' => $size];
                 $totalSize += $size;
                 $success++;
-                $logs[] = ['type' => 'skipped', 'filename' => $existing, 'current' => $i + 1, 'total' => count($urls)];
+                $logs[] = ['type' => 'skipped', 'filename' => $existing, 'current' => $i + 1, 'total' => $total];
+                $this->emit($emit, [
+                    'type' => 'file',
+                    'status' => 'skipped',
+                    'filename' => $existing,
+                    'index' => $i + 1,
+                    'total' => $total,
+                ]);
                 continue;
             }
 
-            $logs[] = ['type' => 'start', 'filename' => $filename, 'url' => $url, 'current' => $i + 1, 'total' => count($urls)];
-            try {
-                $finalPath = $this->downloadImageWithFallback($url, $savePath, $cookie);
-                $finalName = basename($finalPath);
-                $size = (int) filesize($finalPath);
-                $files[] = ['filename' => $finalName, 'size' => $size];
-                $totalSize += $size;
-                $success++;
-                $logs[] = ['type' => 'success', 'filename' => $finalName, 'current' => $i + 1, 'total' => count($urls)];
-            } catch (Throwable $e) {
-                $fail++;
-                $logs[] = [
-                    'type' => 'error',
-                    'filename' => $filename,
-                    'error' => $e->getMessage(),
-                    'current' => $i + 1,
-                    'total' => count($urls),
-                ];
+            $pending[$i] = ['url' => $url, 'path' => $savePath, 'filename' => $filename];
+            $logs[] = ['type' => 'start', 'filename' => $filename, 'url' => $url, 'current' => $i + 1, 'total' => $total];
+            $this->emit($emit, [
+                'type' => 'file',
+                'status' => 'start',
+                'filename' => $filename,
+                'index' => $i + 1,
+                'total' => $total,
+            ]);
+        }
+
+        if ($pending !== []) {
+            $results = $this->downloadBatches($pending, $cookie, $total, $emit);
+
+            $retry = [];
+            foreach ($results as $i => $result) {
+                if ($result['error'] !== null) {
+                    $task = $pending[$i];
+                    $ext = strtolower(pathinfo($task['path'], PATHINFO_EXTENSION));
+                    $altExt = $ext === 'png' ? 'jpg' : 'png';
+                    $retry[$i] = [
+                        'url' => preg_replace('/\.(jpg|png)(\?|$)/i', '.' . $altExt . '$2', $task['url']) ?? $task['url'],
+                        'path' => preg_replace('/\.[^.]+$/', '.' . $altExt, $task['path']) ?? $task['path'],
+                        'filename' => preg_replace('/\.[^.]+$/', '.' . $altExt, $task['filename']) ?? $task['filename'],
+                    ];
+                }
+            }
+            if ($retry !== []) {
+                foreach ($this->downloadBatches($retry, $cookie, $total, $emit) as $i => $result) {
+                    $results[$i] = $result;
+                }
             }
 
-            if ($i < count($urls) - 1 && $this->config->delayMs > 0) {
-                usleep($this->config->delayMs * 1000);
+            ksort($results);
+            foreach ($results as $i => $result) {
+                $index = $i + 1;
+                if ($result['error'] !== null) {
+                    $fail++;
+                    $filename = $pending[$i]['filename'];
+                    $logs[] = ['type' => 'error', 'filename' => $filename, 'error' => $result['error'], 'current' => $index, 'total' => $total];
+                    $this->emit($emit, [
+                        'type' => 'file',
+                        'status' => 'error',
+                        'filename' => $filename,
+                        'index' => $index,
+                        'total' => $total,
+                        'error' => $result['error'],
+                    ]);
+                    continue;
+                }
+
+                $finalName = basename((string) $result['path']);
+                $size = (int) $result['size'];
+                $files[$i] = ['filename' => $finalName, 'size' => $size];
+                $totalSize += $size;
+                $success++;
+                $logs[] = ['type' => 'success', 'filename' => $finalName, 'current' => $index, 'total' => $total];
+                $this->emit($emit, [
+                    'type' => 'file',
+                    'status' => 'success',
+                    'filename' => $finalName,
+                    'index' => $index,
+                    'total' => $total,
+                    'size' => $size,
+                ]);
             }
         }
 
-        $title = (string) ($body['title'] ?? $id);
+        ksort($files);
+        $files = array_values($files);
+
         $tags = PixivApi::extractTags($body);
         $this->persistWork([
             'id' => $id,
             'name' => $id,
             'title' => $title,
             'character' => '',
-            'illust_type' => (int) ($body['illustType'] ?? 0),
+            'illust_type' => $illustType,
             'path' => $taskDir,
             'file_count' => count($files),
             'size' => $totalSize,
@@ -110,7 +183,7 @@ final class Downloader
 
         return [
             'id' => $id,
-            'illustType' => (int) ($body['illustType'] ?? 0),
+            'illustType' => $illustType,
             'title' => $title,
             'path' => $taskDir,
             'successCount' => $success,
@@ -122,7 +195,7 @@ final class Downloader
         ];
     }
 
-    private function downloadUgoira(string $id, array $body, string $cookie, bool $redownload, string $character): array
+    private function downloadUgoira(string $id, array $body, string $cookie, bool $redownload, string $character, ?callable $emit = null): array
     {
         $meta = $this->api->fetchUgoiraMeta($id, $cookie);
         $metaBody = $meta['body'] ?? null;
@@ -139,6 +212,14 @@ final class Downloader
         $taskDir = rtrim($this->config->ugoiraDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $folderName;
         $zipPath = rtrim($this->config->ugoiraDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $folderName . '.zip';
 
+        $this->emit($emit, [
+            'type' => 'start',
+            'id' => $id,
+            'title' => (string) ($body['title'] ?? $id),
+            'illustType' => 2,
+            'total' => 1,
+        ]);
+
         if ($redownload) {
             if (is_dir($taskDir)) {
                 $this->clearDirectory($taskDir, true);
@@ -153,13 +234,45 @@ final class Downloader
         }
 
         $logs = [];
+        $this->emit($emit, ['type' => 'info', 'message' => '使用代理 ' . $this->config->proxyHost . ':' . $this->http->resolvedProxyPort()]);
         $logs[] = ['type' => 'info', 'message' => '使用代理 ' . $this->config->proxyHost . ':' . $this->http->resolvedProxyPort()];
+        $this->emit($emit, [
+            'type' => 'file',
+            'status' => 'start',
+            'filename' => basename($zipPath),
+            'index' => 1,
+            'total' => 1,
+        ]);
         $logs[] = ['type' => 'start', 'filename' => basename($zipPath), 'url' => $originalSrc];
 
-        $this->http->download($originalSrc, $zipPath, $cookie);
+        $lastEmit = 0.0;
+        $this->http->download($originalSrc, $zipPath, $cookie, $emit === null ? null : function (int $downloaded, int $totalBytes) use ($emit, $folderName, &$lastEmit): void {
+            $now = microtime(true);
+            if ($now - $lastEmit < 0.15) {
+                return;
+            }
+            $lastEmit = $now;
+            $this->emit($emit, [
+                'type' => 'progress',
+                'filename' => $folderName . '.zip',
+                'index' => 1,
+                'total' => 1,
+                'bytes' => $downloaded,
+                'totalBytes' => $totalBytes,
+            ]);
+        });
+        $this->emit($emit, [
+            'type' => 'file',
+            'status' => 'success',
+            'filename' => basename($zipPath),
+            'index' => 1,
+            'total' => 1,
+            'size' => (int) (is_file($zipPath) ? filesize($zipPath) : 0),
+        ]);
         $logs[] = ['type' => 'success', 'filename' => basename($zipPath), 'message' => '压缩包下载完成'];
 
         $this->extractZip($zipPath, $taskDir);
+        $this->emit($emit, ['type' => 'info', 'message' => '解压完成']);
         $logs[] = ['type' => 'info', 'message' => '解压完成'];
 
         if (!@unlink($zipPath)) {
@@ -238,6 +351,49 @@ final class Downloader
         ];
     }
 
+    /**
+     * 按并发数分批下载，批内并行。
+     *
+     * @param array<int, array{url:string, path:string, filename:string}> $tasks
+     * @return array<int, array{path:?string, size:int, error:?string}>
+     */
+    private function downloadBatches(array $tasks, string $cookie, int $total, ?callable $emit = null): array
+    {
+        $concurrency = max(1, $this->config->concurrency);
+        $results = [];
+
+        foreach (array_chunk($tasks, $concurrency, true) as $batchIndex => $batch) {
+            if ($batchIndex > 0 && $concurrency === 1 && $this->config->delayMs > 0) {
+                usleep($this->config->delayMs * 1000);
+            }
+
+            $onProgress = $emit === null ? null : function (int $index, int $downloaded, int $totalBytes, array $task) use ($emit, $total): void {
+                $this->emit($emit, [
+                    'type' => 'progress',
+                    'filename' => (string) ($task['filename'] ?? ''),
+                    'index' => $index + 1,
+                    'total' => $total,
+                    'bytes' => $downloaded,
+                    'totalBytes' => $totalBytes,
+                ]);
+            };
+
+            foreach ($this->http->downloadMany($batch, $cookie, $concurrency, $onProgress) as $index => $result) {
+                $results[$index] = $result;
+            }
+        }
+
+        return $results;
+    }
+
+    /** @param array<string, mixed> $event */
+    private function emit(?callable $emit, array $event): void
+    {
+        if ($emit !== null) {
+            $emit($event);
+        }
+    }
+
     public function updateCharacter(string $id, string $character): array
     {
         $id = PixivApi::normalizeId($id);
@@ -275,30 +431,6 @@ final class Downloader
     {
         $this->db->upsertWork($work);
         $this->db->replaceFiles($work['id'], $files);
-    }
-
-    private function downloadImageWithFallback(string $url, string $savePath, string $cookie): string
-    {
-        $currentExt = strtolower(pathinfo($savePath, PATHINFO_EXTENSION));
-        $tryExts = array_values(array_unique(array_filter([$currentExt, 'jpg', 'png'])));
-        $lastError = null;
-
-        foreach ($tryExts as $ext) {
-            $targetUrl = $url;
-            $targetPath = $savePath;
-            if ($ext !== $currentExt) {
-                $targetUrl = preg_replace('/\.(jpg|png)(\?|$)/i', '.' . $ext . '$2', $url) ?? $url;
-                $targetPath = preg_replace('/\.[^.]+$/', '.' . $ext, $savePath) ?? $savePath;
-            }
-            try {
-                $this->http->download($targetUrl, $targetPath, $cookie);
-                return $targetPath;
-            } catch (Throwable $e) {
-                $lastError = $e;
-            }
-        }
-
-        throw $lastError ?? new RuntimeException('所有格式下载失败: ' . $url);
     }
 
     private function extractZip(string $zipPath, string $destDir): void

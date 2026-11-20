@@ -84,6 +84,13 @@ ob_start();
                 </div>
                 <span class="download-status" id="downloadStatus" data-state="idle" aria-hidden="true">等待任务</span>
             </div>
+            <div class="download-progress" id="downloadProgress" hidden>
+                <div class="progress-track" id="downloadProgressBarWrap" role="progressbar"
+                    aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="progress" id="downloadProgressBar"></div>
+                </div>
+                <p class="download-progress-text" id="downloadProgressText"></p>
+            </div>
             <div id="downloadLog" role="log" aria-labelledby="downloadLogTitle" aria-relevant="additions text">
                 <div class="download-log-empty">
                     <span class="download-log-empty-icon"><i class="fa-regular fa-clipboard" aria-hidden="true"></i></span>
@@ -96,5 +103,6 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
-$extraHead = '<script src="/web/js/download.js" type="module"></script>';
+$extraHead = '<link rel="stylesheet" href="/assets/css/download.css">'
+    . '<script src="/web/js/download.js" type="module"></script>';
 require __DIR__ . '/layout.php';

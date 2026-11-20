@@ -3,6 +3,10 @@ const logEl = document.getElementById('downloadLog');
 const startBtn = document.getElementById('startBtn');
 const fetchMetaBtn = document.getElementById('fetchMetaBtn');
 const statusEl = document.getElementById('downloadStatus');
+const progressEl = document.getElementById('downloadProgress');
+const progressBar = document.getElementById('downloadProgressBar');
+const progressWrap = document.getElementById('downloadProgressBarWrap');
+const progressText = document.getElementById('downloadProgressText');
 
 function setStatus(message, state) {
   if (!statusEl) return;
@@ -54,6 +58,110 @@ function warnIfCookieIncomplete(cookie) {
   appendLog('提示：这段 Cookie 不含 PHPSESSID（HttpOnly，document.cookie 读不到），受限作品会返回 404。请从 DevTools → Network → 任意请求的 Cookie 请求头复制完整值。');
 }
 
+function formatSize(bytes) {
+  const value = Number(bytes) || 0;
+  if (value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let index = 0;
+  let size = value;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return (size >= 10 || index === 0 ? size.toFixed(0) : size.toFixed(1)) + ' ' + units[index];
+}
+
+function setProgress(percent, text) {
+  if (!progressEl) return;
+  progressEl.hidden = false;
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  if (progressBar) progressBar.style.width = value.toFixed(1) + '%';
+  if (progressWrap) progressWrap.setAttribute('aria-valuenow', String(Math.round(value)));
+  if (progressText && text !== undefined) progressText.textContent = text;
+}
+
+function resetProgress() {
+  if (!progressEl) return;
+  progressEl.hidden = true;
+  if (progressBar) progressBar.style.width = '0%';
+  if (progressWrap) progressWrap.setAttribute('aria-valuenow', '0');
+  if (progressText) progressText.textContent = '';
+}
+
+function handleDownloadEvent(event) {
+  switch (event.type) {
+    case 'start':
+      setProgress(0, `准备下载 ${event.total} 个文件`);
+      appendLog(`开始下载：${event.title || event.id}（${event.total} 个文件）`);
+      break;
+    case 'file':
+      if (event.status === 'start') {
+        appendLog(`↓ ${event.filename}（${event.index}/${event.total}）`);
+      } else if (event.status === 'skipped') {
+        appendLog(`跳过已存在：${event.filename}`);
+      } else if (event.status === 'success') {
+        appendLog(`✓ ${event.filename} · ${formatSize(event.size)}`, 'download-log-ok');
+      } else if (event.status === 'error') {
+        appendLog(`! ${event.filename}：${event.error}`, 'download-log-err');
+      }
+      break;
+    case 'progress': {
+      const fileRatio = event.totalBytes > 0 ? Math.min(1, event.bytes / event.totalBytes) : 0;
+      const percent = event.total > 0 ? ((event.index - 1 + fileRatio) / event.total) * 100 : 0;
+      setProgress(
+        percent,
+        `下载中 ${event.index}/${event.total} · ${event.filename} · ${formatSize(event.bytes)}`
+      );
+      break;
+    }
+    case 'info':
+      if (event.message) appendLog(event.message);
+      break;
+    case 'error':
+      appendLog(event.message || '下载失败', 'download-log-err');
+      break;
+    default:
+      break;
+  }
+}
+
+async function readDownloadStream(response, onEvent) {
+  if (!response.body) {
+    const text = await response.text();
+    for (const chunk of text.split('\n\n')) {
+      const line = chunk.split('\n').find((item) => item.startsWith('data:'));
+      if (line) onEvent(JSON.parse(line.slice(5).trim()));
+    }
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let separator;
+    while ((separator = buffer.indexOf('\n\n')) >= 0) {
+      const chunk = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+        try {
+          onEvent(JSON.parse(payload));
+        } catch {
+          // 忽略不完整的事件
+        }
+      }
+    }
+  }
+}
+
 function headers() {
   const h = { 'Content-Type': 'application/json' };
   const cookie = document.getElementById('cookie').value.trim();
@@ -81,6 +189,7 @@ fetchMetaBtn?.addEventListener('click', async () => {
     return;
   }
   clearLog();
+  resetProgress();
   warnIfCookieIncomplete(cookie);
   setStatus('正在查询', 'running');
   appendLog('正在请求 /api/illust/' + id + ' …');
@@ -123,35 +232,50 @@ form?.addEventListener('submit', async (event) => {
   }
 
   clearLog();
+  resetProgress();
   warnIfCookieIncomplete(cookie);
   startBtn.disabled = true;
   setStatus('正在下载', 'running');
   appendLog('开始下载…');
 
   try {
-    const result = await api('/api/download', {
+    const response = await fetch('/api/download', {
       method: 'POST',
-      headers: headers(),
+      headers: { ...headers(), Accept: 'text/event-stream' },
       body: JSON.stringify({ id, cookie, proxyPort, character, redownload }),
     });
 
-    for (const item of result.logs || []) {
-      if (item.type === 'error') {
-        appendLog(item.message || item.error || JSON.stringify(item), 'download-log-err');
-      } else if (item.type === 'success') {
-        appendLog(item.message || `成功: ${item.filename || ''}`, 'download-log-ok');
-      } else if (item.type === 'skipped') {
-        appendLog(`跳过已存在: ${item.filename}`);
-      } else {
-        appendLog(item.message || item.filename || item.type || JSON.stringify(item));
-      }
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('text/event-stream')) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `请求失败 HTTP ${response.status}`);
     }
 
+    let result = null;
+    let streamError = null;
+
+    await readDownloadStream(response, (evt) => {
+      if (evt.type === 'done') {
+        result = evt.result || null;
+        return;
+      }
+      if (evt.type === 'error') {
+        streamError = evt.message || '下载失败';
+        return;
+      }
+      handleDownloadEvent(evt);
+    });
+
+    if (streamError) throw new Error(streamError);
+    if (!result) throw new Error('下载中断，未收到完成事件');
+
+    const failCount = result.failCount ?? 0;
+    setProgress(100, `完成：${result.fileCount} 个文件，失败 ${failCount}`);
     appendLog(
-      `完成：illustType=${result.illustType}，成功 ${result.successCount}，失败 ${result.failCount ?? 0}，文件 ${result.fileCount}`,
-      'download-log-ok',
+      `完成：illustType=${result.illustType}，成功 ${result.successCount}，失败 ${failCount}，文件 ${result.fileCount}`,
+      failCount ? 'download-log-err' : 'download-log-ok',
     );
-    setStatus(result.failCount ? '部分失败' : '下载完成', result.failCount ? 'error' : 'success');
+    setStatus(failCount ? '部分失败' : '下载完成', failCount ? 'error' : 'success');
 
     if (result.viewUrl) {
       const a = document.createElement('a');
