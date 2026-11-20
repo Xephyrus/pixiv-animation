@@ -36,34 +36,50 @@
     color: var(--bs-fg-2);
 }
 
-/* 灯箱细节对齐 download-widget：只调工具栏/说明栏与移动端，不改容器几何 */
-.fancybox__container {
-    --f-carousel-slide-padding: calc(var(--f-button-height, 46px) + 20px) 12px
-        calc(var(--f-button-height, 46px) + 28px);
-}
-
 /*
- * Fancybox 打开时仍会保留滚动条槽位，浅色主题下这段会露出页面底色（右侧白边）。
- * download-widget 是深色页面所以看不出来；这里把根元素底色换成遮罩色即可。
+ * 灯箱：与 download-widget 的 Fancybox 4 视觉一致
+ * - 遮罩用实色，浅色页面不会透出来
+ * - 工具按钮用深色半透明底 + 浅色图标
+ * - 工具条 / 说明栏按安全区留白
  */
 html.with-fancybox {
     background-color: #18181b;
 }
 
-.fancybox__toolbar {
+.fancybox__container {
+    --fancybox-backdrop-bg: #18181b;
+    --f-button-color: #dbdbdb;
+    --f-button-hover-color: #fff;
+    --f-button-bg: rgb(24 24 27 / 65%);
+    --f-button-hover-bg: rgb(70 70 73 / 65%);
+    --f-button-active-bg: rgb(90 90 93 / 65%);
+    --f-button-svg-width: 24px;
+    --f-button-svg-height: 24px;
+    --f-button-svg-filter: drop-shadow(1px 1px 1px rgb(24 24 27 / 15%));
+    --f-carousel-slide-padding: calc(var(--f-button-height, 46px) + 20px) 12px
+        calc(var(--f-button-height, 46px) + 28px);
+}
+
+.f-carousel__toolbar {
     padding-top: max(6px, env(safe-area-inset-top, 0px));
     padding-left: max(6px, env(safe-area-inset-left, 0px));
     padding-right: max(6px, env(safe-area-inset-right, 0px));
     background: linear-gradient(180deg, rgb(0 0 0 / 55%) 0%, rgb(0 0 0 / 20%) 55%, transparent 100%);
 }
 
-.fancybox__caption {
-    text-shadow: 0 1px 2px rgb(0 0 0 / 65%);
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
-}
-
 @media (max-width: 719px) {
-    .fancybox__nav .f-button,
+    .fancybox__container {
+        --f-button-width: 44px;
+        --f-button-height: 44px;
+        --f-button-svg-width: 22px;
+        --f-button-svg-height: 22px;
+    }
+
+    .f-carousel__toolbar__column.is-middle:empty {
+        display: none;
+    }
+
+    .f-carousel__nav .f-button,
     .carousel__button.is-prev,
     .carousel__button.is-next {
         display: none;

@@ -1,11 +1,10 @@
 const grid = document.getElementById('grid');
 
-// 与参考项目一致的灯箱能力：缩放、1:1、旋转、全屏、缩略图、下载
+// 与 download-widget 完全一致的 Fancybox 4 配置
 const lightboxOptions = {
   Hash: true,
   Carousel: {
     preload: 2,
-    Thumbs: { type: 'classic' },
     Toolbar: {
       display: {
         left: ['counter'],
@@ -16,6 +15,7 @@ const lightboxOptions = {
           'toggle1to1',
           'rotateCCW',
           'rotateCW',
+          'autoplay',
           'fullscreen',
           'thumbs',
           'download',
@@ -23,6 +23,7 @@ const lightboxOptions = {
         ],
       },
     },
+    Thumbs: { type: 'classic' },
     breakpoints: {
       '(max-width: 719px)': {
         Arrows: false,
@@ -42,6 +43,9 @@ function bindLightbox() {
   const links = grid ? grid.querySelectorAll('a[data-fancybox]') : [];
 
   if (window.Fancybox) {
+    if (typeof window.Fancybox.unbind === 'function') {
+      window.Fancybox.unbind('[data-fancybox="gallery"]');
+    }
     window.Fancybox.bind('[data-fancybox="gallery"]', lightboxOptions);
     // 灯箱接管后不再需要新标签页兜底
     for (const link of links) {
@@ -57,6 +61,9 @@ function bindLightbox() {
     attempts += 1;
     if (window.Fancybox) {
       clearInterval(timer);
+      if (typeof window.Fancybox.unbind === 'function') {
+        window.Fancybox.unbind('[data-fancybox="gallery"]');
+      }
       window.Fancybox.bind('[data-fancybox="gallery"]', lightboxOptions);
       for (const link of links) {
         link.removeAttribute('target');

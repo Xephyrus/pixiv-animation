@@ -77,8 +77,8 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
-$extraHead = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5/dist/fancybox/fancybox.css">'
+$extraHead = '<link rel="stylesheet" href="/assets/vendor/fancybox/fancybox.css">'
     . '<link rel="stylesheet" href="/assets/css/artwork.css">';
-$extraScripts = '<script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js" defer></script>'
+$extraScripts = '<script src="/assets/vendor/fancybox/fancybox.umd.js" defer></script>'
     . '<script src="/web/js/artwork.js" type="module"></script>';
 require __DIR__ . '/layout.php';
