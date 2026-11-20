@@ -10,7 +10,7 @@
     overflow: hidden;
     cursor: zoom-in;
     background: var(--bs-bg-2);
-    contain: layout paint style;
+    contain: layout;
     transition: transform .18s ease, box-shadow .18s ease;
 }
 
@@ -34,4 +34,30 @@
 .artwork-empty {
     grid-column: 1 / -1;
     color: var(--bs-fg-2);
+}
+
+/* 灯箱细节对齐 download-widget：只调工具栏/说明栏与移动端，不改容器几何 */
+.fancybox__container {
+    --f-carousel-slide-padding: calc(var(--f-button-height, 46px) + 20px) 12px
+        calc(var(--f-button-height, 46px) + 28px);
+}
+
+.fancybox__toolbar {
+    padding-top: max(6px, env(safe-area-inset-top, 0px));
+    padding-left: max(6px, env(safe-area-inset-left, 0px));
+    padding-right: max(6px, env(safe-area-inset-right, 0px));
+    background: linear-gradient(180deg, rgb(0 0 0 / 55%) 0%, rgb(0 0 0 / 20%) 55%, transparent 100%);
+}
+
+.fancybox__caption {
+    text-shadow: 0 1px 2px rgb(0 0 0 / 65%);
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 719px) {
+    .fancybox__nav .f-button,
+    .carousel__button.is-prev,
+    .carousel__button.is-next {
+        display: none;
+    }
 }
