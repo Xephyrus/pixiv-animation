@@ -37,13 +37,18 @@
 }
 
 /*
- * 灯箱：与 download-widget 的 Fancybox 4 视觉一致
- * - 遮罩用实色，浅色页面不会透出来
- * - 工具按钮用深色半透明底 + 浅色图标
- * - 工具条 / 说明栏按安全区留白
+ * 灯箱细节对齐 download-widget：工具条/说明栏/按钮配色按参考项目，
+ * 并在打开时隐藏原生滚动条（参考项目本来就全局隐藏，用自定义滚动条），
+ * 这样不会因为滚动条槽位在右侧露出条带。
  */
 html.with-fancybox {
-    background-color: #18181b;
+    scrollbar-width: none;
+}
+
+html.with-fancybox::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 .fancybox__container {
